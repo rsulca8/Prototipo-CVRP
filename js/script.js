@@ -44,7 +44,7 @@ function mostraRutas(){
                 var routes = e.routes;
                 var summary = routes[0].summary;
                 distancias.push({i:puntos[i],j:puntos[j],distancia: summary.totalDistance})
-                console.log('Distancia' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
+                console.log('Distancia ' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
              });
              
             console.log(resultado)
@@ -56,32 +56,45 @@ function mostraRutas(){
     for (let i=0; i<segmentos.length; i++){
         segmentos[i].addTo(map)
     }
+    ocultarInstrucciones()
 }
 
 function mostrarMatrizDistancias(){
+    agregarPuntosFaltantes()
+    ordenarPares()
+    console.log(distancias)
+    var actual = 0
     for(let i=0; i<puntos.length; i++){
         fila = []
         for(let j=0; j<puntos.length;j++){
-            if(i<j){
-                fila.push(distancias[j].distancia)
-            }
             if(i==j){
                 fila.push(Number.POSITIVE_INFINITY)
             }
             else{
-                fila.push(distancias[i].distancia)
+                fila.push(distancias[actual].distancia)
+                actual++;
             }
         }   
         matrizDistancias.push(fila)
     }
-    console.log(matrizDistancias)
+    console.table(matrizDistancias)
 }
 
+function ordenarPares(){
+    distancias.sort((a,b)=>{if(a.i.nodo>b.i.nodo){return 1}else{return -1}}) //Ordena por el x
+    distancias.sort((a,b)=>{if(a.i.nodo==b.i.nodo){if(a.j.nodo>b.j.nodo){return 1}else{return -1}}else{return -1}}) //Ordena por el y
+}
+function agregarPuntosFaltantes(){
+    N = distancias.length
+    for(let i=0; i<N;i++){
+        distancias.push({i:distancias[i].j,j:distancias[i].i,distancia:distancias[i].distancia})
+    }
+    
+}
+
+
 function ocultarInstrucciones(){
- 
- 
-    console.log(document.querySelector(".leaflet-control-container"))
-    console.log(document.querySelector(".leaflet-routing-container-hide"))
+    document.querySelector(".leaflet-right").style += " display: none";
 }
 
 
