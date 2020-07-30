@@ -17,23 +17,26 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <script src="jquery-1.8.2.js"></script>
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-    <script src="js/script.js"></script>
+
     <!-- LIBRERÍA PARA MOSTRAR E INTERACTUAR CON EL MAPA-->
 
   </head>
 
-  <body onload="init2();">
+  <body>
     <div id="map"></div>
     <div id="botonBar1">
         <button id="botonCargarPuntos">
-            CARGAR PUNTOS
+            MOSTRAR RUTAS
+        </button>
+        <button id="botonMostrarMatrizDistancia">
+            MOSTRAR MATRIZ DISTANCIAS
         </button>
     </div>
   </body>
-  <script>
+        
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script src="js/script.js"></script>
 
-  </script>
 </html>
 
 

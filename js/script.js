@@ -1,57 +1,103 @@
 var map 
 var coords 
 var puntos = []
-
-
+var segmentos = []  
+var distancias = []
+var matrizDistancias = []
 var pin = L.icon({
     iconUrl: 'pin.png',
     iconSize: [45, 45],
     iconArchor: [45,30]
 });
 
-function init2() {
-    coords = null;
-    if ( navigator.geolocation ) {
-        navigator.geolocation.watchPosition(
-            function ( Position ) {
-                coords = Position.coords;
-                console.log(coords);
-                map = L.map('map').setView([Position.coords.latitude, Position.coords.longitude ], 14);
+const coordSalta = [-24.7892, -65.4106]
+coords = null;
 
-                map.addEventListener("click",(ev)=>{
-                    coordenadas = ev.latlng
-                    lat = coordenadas.lat
-                    lng = coordenadas.lng
-                    L.marker([lat, lng], {icon: pin}).addTo(map);
-                    puntos.push(coordenadas)
-                    L.Routing.control({
-                        waypoints: puntos
-                      }).addTo(map);
-                    
-                    
-                    console.log(puntos)
-                })
-                console.log("map" + map);
-                L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
-                noLoc = false;
-                },
-                function (err) {
-                    // there was an error getting the location
-                    console.log(err.message);
-                },
-                {enableHighAccuracy:false, maximumAge:100000, timeout:100000}
-            );
+map = L.map('map').setView(coordSalta, 14);
+
+cantidadClientes = 1
+
+map.addEventListener("click",(ev)=>{
+    coord= ev.latlng
+    lat = coord.lat
+    lng = coord.lng
+    L.marker([lat, lng], {icon: pin}).addTo(map);
+    puntos.push({nodo: cantidadClientes,coordenadas:coord})
+    cantidadClientes++  
+
+
+})  
+
+
+
+
+function mostraRutas(){
+    
+    for (let i=0; i<puntos.length; i++){
+        for(let j=i+1; j<puntos.length; j++){
+            segmento = [puntos[i].coordenadas,puntos[j].coordenadas]
+            resultado = L.Routing.control({
+                waypoints: segmento,
+            })
+
+            resultado.on('routesfound', function(e) {
+                var routes = e.routes;
+                var summary = routes[0].summary;
+                distancias.push({i:puntos[i],j:puntos[j],distancia: summary.totalDistance})
+                console.log('Distancia' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
+             });
+             
+            console.log(resultado)
+            segmentos.push(resultado)
+            console.log(distancias)
+        }
+    }
+
+    for (let i=0; i<segmentos.length; i++){
+        segmentos[i].addTo(map)
     }
 }
 
-
-function puntosToLatLng(P,L){
-    nuevo = []
-    for (let i; i<P.length; i++){
-        nuevo.push(L.latLng(P[i].lat,P[i].lng))
+function mostrarMatrizDistancias(){
+    for(let i=0; i<puntos.length; i++){
+        fila = []
+        for(let j=0; j<puntos.length;j++){
+            if(i<j){
+                fila.push(distancias[j].distancia)
+            }
+            if(i==j){
+                fila.push(Number.POSITIVE_INFINITY)
+            }
+            else{
+                fila.push(distancias[i].distancia)
+            }
+        }   
+        matrizDistancias.push(fila)
     }
-    return nuevo
+    console.log(matrizDistancias)
 }
+
+function ocultarInstrucciones(){
+ 
+ 
+    console.log(document.querySelector(".leaflet-control-container"))
+    console.log(document.querySelector(".leaflet-routing-container-hide"))
+}
+
+
+L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
+
+
+
+function RGB2HTML(red, green, blue)
+{
+    var decColor =0x1000000+ blue + 0x100 * green + 0x10000 *red ;
+    return '#'+decColor.toString(16).substr(1); 
+}
+
+function random(min, max) {
+    return Math.random() * (max - min) + min;
+  }
 
 
 function cargarPuntos() {
@@ -64,3 +110,6 @@ function cargarPuntos() {
         });
     }
 }
+
+document.querySelector("#botonCargarPuntos").addEventListener('click',mostraRutas)
+document.querySelector("#botonMostrarMatrizDistancia").addEventListener('click',mostrarMatrizDistancias)
