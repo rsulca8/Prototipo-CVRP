@@ -51,14 +51,6 @@ function mostraRutas(){
                         {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
                         ]
                     },
-                plan: L.Routing.plan(segmento, {
-                        createMarker: function(i, wp) {
-                            return L.marker(wp.latLng, {
-                                draggable: true,
-                                icon: L.icon.glyph({ glyph: String.fromCharCode(65 + i) })
-                            });
-                        }
-                })
             })
             resultado.on('routesfound', function(e) {
                 var routes = e.routes;
@@ -147,21 +139,13 @@ function random(max) {
 }
 
 
-function cargarPuntos() {
-
-    if (window.coords != null) {
-        $.ajax({'url' :'searchNear.php',
-                'data' : {'q': q, 'lat':window.coords.latitude,
-                'lon':coords.longitude}}).done(function(msg) {
-                        $('#results').html('<pre> ' + msg + '</pre>');
-        });
-    }
-}
 
 async function enviarMatrizDistancias(){
     nroVehiculos = document.querySelector("#inputNroVehiculos").value
+    capacidadMax = document.querySelector("#inputCapacidadMax").value
+    console.log("se está por enviar"+"data="+JSON.stringify(matrizDistancias)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()))
     jsonRutas = await fetch("http://localhost:5000/post", {
-        body: "data="+JSON.stringify(matrizDistancias)+"&nroVehiculos="+nroVehiculos,
+        body: "data="+JSON.stringify(matrizDistancias)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()),
         headers: {
           "Content-Type": "application/x-www-form-urlencoded"
         },
@@ -180,6 +164,7 @@ function agregarClienteTabla(cli,co,d){
     dem.type = "number"
     dem.value= d
     dem.min = 0
+    dem.id = "dem"+String(cli)
     
     cliente.innerText = cli
     coord.innerText = co
@@ -191,6 +176,15 @@ function agregarClienteTabla(cli,co,d){
     bodyTabla.appendChild(fila)
 }
 
+function obtenerDemandas(){
+    demandas = []
+    for(let i=1; i<cantidadClientes;i++){
+        id = "dem"+String(i)
+        console.log(id)
+        demandas.push(document.getElementById(id).value)
+    }
+    return demandas
+}
 
 document.querySelector("#botonCargarPuntos").addEventListener('click',mostraRutas)
 document.querySelector("#botonMostrarMatrizDistancia").addEventListener('click',mostrarMatrizDistancias)
