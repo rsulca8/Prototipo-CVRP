@@ -18,14 +18,19 @@ def get(matriz_id):
 def post():   
     datos = request.form['data']
     nroVehiculos = request.form['nroVehiculos']
-    print(nroVehiculos)
-    response = app.response_class(
-        response=datos,
-        status=200,
-        mimetype='application/json'
-    )
+    demandas = request.form['capacidadMax']
+    capacidadMax = request.form['demandas']
 
-    return datos,200
+
+    resp = json.dumps({
+        "datos":datos,
+        "nroVehiculos":nroVehiculos,
+        "demandas":demandas,
+        "capacidadMax": capacidadMax})
+
+ 
+
+    return resp,200
 
 
 
