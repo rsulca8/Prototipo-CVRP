@@ -7,17 +7,17 @@ var distancias = []
 var matrizDistancias = []
 var matrizId = 0
 var capas = []
-var rutasOptimas = null
 var capaPosiblesRutas = null
+var pilaClientes = []
 var pin = L.icon({
     iconUrl: 'pin.png',
-    iconSize: [45, 45],
-    iconArchor: [45,30]
+    iconSize: [35, 35],
+    iconArchor: [17,36]
 });
 var iconoDeposito = L.icon({
     iconUrl: 'store-icon.png',
     iconSize: [35, 35],
-    iconArchor: [35,30]
+    iconArchor: [17,36]
 });
 
 const coordSalta = [-24.7892, -65.4106]
@@ -39,6 +39,7 @@ function crearMarca(ev){
         marca.bindPopup("Deposito").openPopup();
         puntos.push({nodo: cantidadClientes,coordenadas:coord})
         agregarClienteTabla(cantidadClientes,"Latitud: "+lat+" Longitud: "+lng+0,0)
+        pilaClientes.push(cantidadClientes)
     }
     else{
         marca = L.marker([lat, lng], {icon: pin}).addTo(map);
@@ -46,6 +47,7 @@ function crearMarca(ev){
         marcas.push(marca)
         puntos.push({nodo: cantidadClientes,coordenadas:coord})
         agregarClienteTabla(cantidadClientes,"Latitud: "+lat+" Longitud: "+lng+0,1)
+        pilaClientes.push(cantidadClientes)
     }
     cantidadClientes++ 
 }
@@ -53,59 +55,71 @@ map.addEventListener("click",crearMarca)
 
 
 function mostraRutas(){ 
-
-    for (let i=0; i<puntos.length; i++){
-        for(let j=i+1; j<puntos.length; j++){
-    
-            segmento = [puntos[i].coordenadas,puntos[j].coordenadas]
-            resultado = L.Routing.control({
-                waypoints: segmento,
-                lineOptions: {
-                    styles:[
-                        {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
-                        ]
-                    },	
-            })
-            resultado.on('routesfound', function(e) {
-                var routes = e.routes;
-                var summary = routes[0].summary;
-                distancias.push({i:puntos[i],j:puntos[j],distancia: summary.totalDistance})
-                console.log('Distancia ' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
-            });
-            //capa = L.polyline(segmento, {color: RGB2HTML(random(256),random(256),random(256))}).addTo(map);
-            // capaPosiblesRutas = L.layerGroup(segmento[0].coordenadas,segmento[1].coordenadas).addTo(map)
-            // capaPosiblesRutas.addLayer(resultado)
-            
-            
-            segmentos.push(resultado)
+    return new Promise((resuelto,rechazado)=>{
+        var rutasEncotradas = 0
+        for (let i=0; i<puntos.length; i++){
+            for(let j=i+1; j<puntos.length; j++){
+                
+                segmento = [puntos[i].coordenadas,puntos[j].coordenadas]
+                resultado = L.Routing.control({
+                    waypoints: segmento,
+                    plan: L.Routing.plan(segmento, {
+                        createMarker: function(i, wp) {
+                          return L.marker(wp.latLng, {
+                            draggable: false,
+                            icon: L.divIcon({className: 'my-div-icon'})
+                          })
+                        }
+                      }),
+                    addWaypoints: false,
+                    routeWhileDragging: false,
+                    show: false,
+                    lineOptions: {
+                        styles:[
+                            {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
+                            ]
+                        },	
+                })
+                resultado.on('routesfound', function(e) {
+                    var routes = e.routes;
+                    var summary = routes[0].summary;
+                    distancias.push({i:puntos[i],j:puntos[j],distancia: summary.totalDistance})
+                    console.log('Distancia ' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
+                    
+                    //Controla Asincronía
+                    if(rutasEncotradas==((puntos.length)*(puntos.length-1)/2)-1){
+                        console.log("Terminó de cargar Matriz Distancias")
+                        resuelto()
+                    }
+                    else{
+                        rutasEncotradas++;
+                    }
+                });
+                //capa = L.polyline(segmento, {color: RGB2HTML(random(256),random(256),random(256))}).addTo(map);
+                // capaPosiblesRutas = L.layerGroup(segmento[0].coordenadas,segmento[1].coordenadas).addTo(map)
+                // capaPosiblesRutas.addLayer(resultado)
+                
+                
+                segmentos.push(resultado)
+            }
         }
-    }
-
-
-    for (let i=0; i<segmentos.length; i++){
-        segmentos[i].addTo(map)
-    }
-
-    for (let i=1; i<marcas.length; i++){
-        marcas[i].remove()
-    }
-
-
-    marcas = []
-    ocultarInstrucciones()
+    
+    
+        for (let i=0; i<segmentos.length; i++){
+            segmentos[i].addTo(map)
+        }
+        map.removeEventListener("click",crearMarca)  
+        ocultarInstrucciones()
+    });
     
 
-    //map.removeEventListener("click",crearMarca) 
-    // for (let i=0; i<segmentos.length; i++){
-    //     segmentos[i].addTo(map)
-    // }
-
-
-    
 }
 
 
+
+
 function mostrarMatrizDistancias(){
+
     matrizDistancias = []
     agregarPuntosFaltantes()
     ordenarPares()
@@ -133,6 +147,7 @@ function ordenarPares(){
 }
 
 function agregarPuntosFaltantes(){
+    //Agrega al array de distancias, las distancias de la triangular inferior
     N = distancias.length
     for(let i=0; i<N;i++){
         distancias.push({i:distancias[i].j,j:distancias[i].i,distancia:distancias[i].distancia})
@@ -173,8 +188,7 @@ async function enviarMatrizDistancias(){
     rutas = await jsonRutas.json()
     rutas.costoAsociado = parseFloat(rutas.costoAsociado)
     rutas.rutas = JSON.parse(rutas.rutas)
-    rutasOptimas = rutas.rutas
-    mostrarRutasOptimas()
+    return Promise.resolve(rutas)
 }
 
 //Agrega un cliente a la tabla de clientes
@@ -213,39 +227,53 @@ function borrarPosiblesRutas(){
     }
 }
 
-function mostrarRutasOptimas(){
+function mostrarRutasOptimas(rutasRespuesta){
+
     borrarPosiblesRutas()
     mostrarMatrizDistancias()
-    for(let i=0; i<rutasOptimas.length;i++){
-        rutaAux = []
 
-        for(let j=0; j<rutasOptimas[i].length; j++){
-            rutaAux.push(puntos[j].coordenadas)
+    for(let i=0; i<rutasRespuesta.length;i++){
+        rutaAux = []
+        console.log("N: "+rutasRespuesta[i].length)
+        for(let j=0; j<rutasRespuesta[i].length; j++){
+            console.log(rutasRespuesta[i][j])
+            rutaAux.push(puntos[rutasRespuesta[i][j]-1].coordenadas)
         }
         rutaAux.push(puntos[0].coordenadas)
-        console.log("Ruta Aux"+JSON.stringify(rutaAux))
+        console.log(rutaAux)
+        console.log("Ruta Aux "+JSON.stringify(rutaAux))
         resultado = L.Routing.control({
             waypoints: rutaAux,
+            plan: L.Routing.plan(rutaAux, {
+                createMarker: function(i, wp) {
+                  return L.marker(wp.latLng, {
+                    draggable: false,
+                    icon: L.divIcon({className: 'my-div-icon'})
+                  })
+                }
+              }),
+            addWaypoints: false,
+            routeWhileDragging: false,
+            show: false,
             lineOptions: {
                 styles:[
-                    {
-                        color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
+                    {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
                     ]
-                },	
-    
+                },
         })
         resultado.addTo(map)
     }
-
 }
 
-function borrarMarcas(){
-    marcas = document.getElementsByClassName("leaflet-marker-icon")
-    console.log(marcas)
+function reemplazarMarcas(){
+    //Marcas 
     for(let i=0; i<marcas.length; i++){
-        console.log(marcas[i].attributes.src)
-        marcas[i].attributes.src.nodeValue = "pinNumerado.png"
-
+        marcas[i].remove()
+    }    
+    console.log(marcas)
+    marcasActuales = document.getElementsByClassName("leaflet-marker-icon")
+    for(let i=0; i<marcasActuales.length; i++){
+        marcasActuales[i].attributes.src.nodeValue = "pin.png"
     }    
 }
 
@@ -273,9 +301,15 @@ function buscarDireccion(direccion){
 
 }
 
+function calcularRutasOptimas(){
+    mostraRutas().then(()=>{
+        mostrarMatrizDistancias()
+        enviarMatrizDistancias().then((rutasRespuesta)=>{
+            console.log(rutasRespuesta)
+            mostrarRutasOptimas(rutasRespuesta.rutas)
+        })
+    })
+}
 
 
-
-document.querySelector("#botonMostrarMatrizDistancia").addEventListener('click',mostrarMatrizDistancias)
-document.querySelector("#botonCargarPuntos").addEventListener('click',mostraRutas)
-document.querySelector("#botonMostrarRutasoOptimas").addEventListener('click',enviarMatrizDistancias)   
+document.querySelector("#botonCalcularRutasoOptimas").addEventListener('click',calcularRutasOptimas)
