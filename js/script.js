@@ -7,10 +7,12 @@ var distancias = []
 var matrizDistancias = []
 var matrizId = 0
 var capas = []
+var direcciones = []
 var capaPosiblesRutas = null
 var pilaClientes = []
+var cantidadClientes = 1
 var pin = L.icon({
-    iconUrl: 'pin.png',
+    iconUrl: "pin.png",
     iconSize: [35, 35],
     iconArchor: [17,36]
 });
@@ -24,10 +26,10 @@ coords = null;
 
 
 var router = new L.Routing.osrmv1({serviceUrl: 'http://localhost:7000/route/v1'})
-map = L.map('map').setView(coordSalta, 14);
-L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
 
-cantidadClientes = 1
+map = L.map('map').setView(coordSalta, 14,{});
+L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
+crearDeposito()
 
 function crearMarca(ev){
     coord= ev.latlng
@@ -53,17 +55,25 @@ function crearMarca(ev){
     cantidadClientes++ 
 }
 map.addEventListener("click",crearMarca)  
+leerXLSX()
 
+function crearDeposito(){
+    coord = coordSalta
+    lat = coord.lat
+    lng = coord.lng
 
-
-
+    marca = L.marker(coordSalta, {icon: iconoDeposito}).addTo(map);
+    marcas.push(marca)
+    marca.bindPopup("Deposito").openPopup();
+    puntos.push({nodo: cantidadClientes,coordenadas:{lat:coordSalta[0],lng:coordSalta[1]}})
+    agregarClienteTabla(cantidadClientes,"Depósito",0)
+    pilaClientes.push(cantidadClientes)
+    cantidadClientes++
+}
 
 function ocultarInstrucciones(){
     document.querySelector(".leaflet-right").style = "display: none";
 }
-
-
-
 
 function RGB2HTML(red, green, blue)
 {
@@ -192,24 +202,17 @@ var searchControl = L.esri.Geocoding.geosearch().addTo(map);
 var results = L.layerGroup().addTo(map)
 
 
-function buscarDireccion(direccion){
+async function buscarDireccion(direccion){
     salta = L.latLng(coordSalta[0],coordSalta[1])
     resultado = null
-    resultados = L.esri.Geocoding.geocode().text(direccion).nearby(salta,10000).city("Salta").region('Salta').run(function (err, results, response) {
-        if (err) {
-          console.log(err);
-          return;
+    resultado = await fetch("https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?outSr=4326&forStorage=false&outFields=*&maxLocations=20&singleLine=indalecio%20Gomez%2032&location=-65.4106%2C-24.7892&distance=10000&city=Salta&region=Salta&f=json",{
+        method: "GET",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
         }
-        for(let i=0; i<results.length; i++){
-            console.log(results[i])
-            if(results[i].properties.City == "Salta"){
-                console.log(results[i])
-            }
-        }
-        console.log(results)
-    });
-    console.log(resultados)
-
+    })
+    jsonDireccion = await resultado.json()
+    console.log(jsonDireccion)
 }
 
 function calcularRutasOptimas(){
@@ -217,7 +220,6 @@ function calcularRutasOptimas(){
         console.log(rutasRespuesta)
         mostrarRutasOptimas(rutasRespuesta.rutas)
     })
-
 }
 
 async function  enviarPuntos(){
@@ -233,6 +235,84 @@ async function  enviarPuntos(){
     console.table(jsonResp.matriz)
 }
 
+async function SVG(){
+    svg = await fetch("iconos/SVG/pin0.svg",{
+        method: "GET",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+    })
+
+    svgText = await svg.text()
+    console.log(encodeURI("data:image/svg+xml," + svgText))
+    return encodeURI("data:image/svg+xml," + svgText)
+
+}
+
+function leerXLSX(){
+    var url = "Direcciones.xlsx";
+    var oReq = new XMLHttpRequest();
+    oReq.open("GET", url, true);
+    oReq.responseType = "arraybuffer";
+
+    var valores = null
+    var latLng
+    oReq.onload = function(e) {
+        var valores = leerDatos();
+
+        function leerDatos(){
+            var arraybuffer = oReq.response;
+        
+            // Convertimos los datos a string
+            var datos = new Uint8Array(arraybuffer);
+            var arrayAux = new Array();
+            for(var i = 0; i != datos.length; ++i) arrayAux[i] = String.fromCharCode(datos[i]);
+            var bstr = arrayAux.join("");
+        
+            // Leemos el archivo .xlsx
+            var workbook = XLSX.read(bstr, {type:"binary"});
+        
+            //Leemos los nombres de los atributos
+            var first_sheet_name = workbook.SheetNames[0];
+            //La primera hoja de trabajo
+            var worksheet = workbook.Sheets[first_sheet_name];
+            valores = XLSX.utils.sheet_to_json(worksheet,{raw:true});
+            return valores;
+        }
+
+        for(var i=0; i<valores.length-1; i++){
+            console.log("Cliente "+i+"- Direccion: "+valores[i].Direccion);
+            direcciones.push(buscarDireccion(valores[i].Direccion, valores[i].Ciudad, valores[i].Provincia, valores[i].Pais))
+        }
+    }
+    oReq.send();
+}
+
+function buscarDireccion(Direccion, Ciudad, Provincia, Pais){
+    salta = L.latLng(coordSalta[0],coordSalta[1])
+    resultadoLatLng = null
+    return L.esri.Geocoding.geocode().address(Direccion).city(Ciudad).region(Provincia).run(function (err, resultados, response) {
+        if (err) {
+          console.log(err);
+          return;
+        }
+        coordenadas = [resultados.results[0].latlng.lat, resultados.results[0].latlng.lng]
+
+        console.log(resultados)
+        console.log("resultados: "+resultados.results[0].text)
+        console.log(resultados.results[0].latlng)
+        coordenadas = [resultados.results[0].latlng.lat, resultados.results[0].latlng.lng]
+        marca = L.marker(coordenadas, {icon: pin}).addTo(map);
+        marca.bindPopup("Cliente "+cantidadClientes).openPopup();
+        marcas.push(marca)
+        puntos.push({nodo: cantidadClientes,coordenadas:{lat:coordenadas[0],lng:coordenadas[1]}})
+        agregarClienteTabla(cantidadClientes,Direccion,1)
+        pilaClientes.push(cantidadClientes)
+        cantidadClientes++
+    })
+
+}
+
 
 document.querySelector("#botonCalcularRutasoOptimas").addEventListener('click',calcularRutasOptimas)
-document.querySelector("#botonEnviarPuntos").addEventListener('click',enviarPuntos)
+document.querySelector("#botonEnviarPuntos")

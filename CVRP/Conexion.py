@@ -55,6 +55,7 @@ def getMatrizDistancias2():
 
 def convertirPuntos(P):
     coordenadas = []
+    print(P)
     for p in P:
         nodo = p.get("nodo")
         coord = p.get("coordenadas")
