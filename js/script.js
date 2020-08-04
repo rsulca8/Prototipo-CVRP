@@ -19,10 +19,11 @@ var iconoDeposito = L.icon({
     iconSize: [35, 35],
     iconArchor: [17,36]
 });
-
 const coordSalta = [-24.7892, -65.4106]
 coords = null;
-var router = new L.Routing.osrmv1({serviceUrl: 'http://localhost:5000/viaroute'})
+
+
+var router = new L.Routing.osrmv1({serviceUrl: 'http://localhost:7000/route/v1'})
 map = L.map('map').setView(coordSalta, 14);
 L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
 
@@ -54,105 +55,7 @@ function crearMarca(ev){
 map.addEventListener("click",crearMarca)  
 
 
-function mostraRutas(){ 
-    return new Promise((resuelto,rechazado)=>{
-        var rutasEncotradas = 0
-        for (let i=0; i<puntos.length; i++){
-            for(let j=i+1; j<puntos.length; j++){
-                
-                segmento = [puntos[i].coordenadas,puntos[j].coordenadas]
-                resultado = L.Routing.control({
-                    waypoints: segmento,
-                    plan: L.Routing.plan(segmento, {
-                        createMarker: function(i, wp) {
-                          return L.marker(wp.latLng, {
-                            draggable: false,
-                            icon: L.divIcon({className: 'my-div-icon'})
-                          })
-                        }
-                      }),
-                    addWaypoints: false,
-                    routeWhileDragging: false,
-                    show: false,
-                    lineOptions: {
-                        styles:[
-                            {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
-                            ]
-                        },	
-                })
-                resultado.on('routesfound', function(e) {
-                    var routes = e.routes;
-                    var summary = routes[0].summary;
-                    distancias.push({i:puntos[i],j:puntos[j],distancia: summary.totalDistance})
-                    console.log('Distancia ' + summary.totalDistance / 1000 + ' km y el tiempo total es ' + Math.round(summary.totalTime % 3600 / 60) + ' minutos');
-                    
-                    //Controla Asincronía
-                    if(rutasEncotradas==((puntos.length)*(puntos.length-1)/2)-1){
-                        console.log("Terminó de cargar Matriz Distancias")
-                        resuelto()
-                    }
-                    else{
-                        rutasEncotradas++;
-                    }
-                });
-                //capa = L.polyline(segmento, {color: RGB2HTML(random(256),random(256),random(256))}).addTo(map);
-                // capaPosiblesRutas = L.layerGroup(segmento[0].coordenadas,segmento[1].coordenadas).addTo(map)
-                // capaPosiblesRutas.addLayer(resultado)
-                
-                
-                segmentos.push(resultado)
-            }
-        }
-    
-    
-        for (let i=0; i<segmentos.length; i++){
-            segmentos[i].addTo(map)
-        }
-        map.removeEventListener("click",crearMarca)  
-        ocultarInstrucciones()
-    });
-    
 
-}
-
-
-
-
-function mostrarMatrizDistancias(){
-
-    matrizDistancias = []
-    agregarPuntosFaltantes()
-    ordenarPares()
-    console.log(distancias)
-    var actual = 0
-    for(let i=0; i<puntos.length; i++){
-        fila = []
-        for(let j=0; j<puntos.length;j++){
-            if(i==j){
-                fila.push(Number.POSITIVE_INFINITY)
-            }
-            else{
-                fila.push(distancias[actual].distancia)
-                actual++;
-            }
-        }   
-        matrizDistancias.push(fila)
-    }
-    console.table(matrizDistancias)
-}
-
-function ordenarPares(){
-    distancias.sort((a,b)=>{if(a.i.nodo>b.i.nodo){return 1}else{return -1}}) //Ordena por el x
-    distancias.sort((a,b)=>{if(a.i.nodo==b.i.nodo){if(a.j.nodo>b.j.nodo){return 1}else{return -1}}else{return -1}}) //Ordena por el y
-}
-
-function agregarPuntosFaltantes(){
-    //Agrega al array de distancias, las distancias de la triangular inferior
-    N = distancias.length
-    for(let i=0; i<N;i++){
-        distancias.push({i:distancias[i].j,j:distancias[i].i,distancia:distancias[i].distancia})
-    }
-}
 
 
 function ocultarInstrucciones(){
@@ -177,9 +80,9 @@ function random(max) {
 async function enviarMatrizDistancias(){
     nroVehiculos = document.querySelector("#inputNroVehiculos").value
     capacidadMax = document.querySelector("#inputCapacidadMax").value
-    console.log("se está por enviar"+"data="+JSON.stringify(matrizDistancias)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()))
+    console.log("se está por enviar "+"data="+JSON.stringify(puntos)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()))
     jsonRutas = await fetch("http://localhost:5000/post", {
-        body: "data="+JSON.stringify(matrizDistancias)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()),
+        body: "data="+JSON.stringify(puntos)+"&nroVehiculos="+nroVehiculos+"&capacidadMax="+capacidadMax+"&demandas="+JSON.stringify(obtenerDemandas()),
         headers: {
           "Content-Type": "application/x-www-form-urlencoded"
         },
@@ -221,7 +124,7 @@ function obtenerDemandas(){
     return demandas
 }
 
-function borrarPosiblesRutas(){
+function borrarRutas(){
     for (let i=0; i<segmentos.length;i++){
         segmentos[i].remove()
     }
@@ -229,9 +132,7 @@ function borrarPosiblesRutas(){
 
 function mostrarRutasOptimas(rutasRespuesta){
 
-    borrarPosiblesRutas()
-    mostrarMatrizDistancias()
-
+    borrarRutas()
     for(let i=0; i<rutasRespuesta.length;i++){
         rutaAux = []
         console.log("N: "+rutasRespuesta[i].length)
@@ -255,12 +156,22 @@ function mostrarRutasOptimas(rutasRespuesta){
             addWaypoints: false,
             routeWhileDragging: false,
             show: false,
-            lineOptions: {
-                styles:[
-                    {color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5},
-                    ]
-                },
+            routeLine: (r) =>{
+                var line = L.Routing.line(r,{
+                    styles:[
+                            {
+                                color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5
+                            },
+                        ],
+                })
+                line.on("linetouched",()=>{
+                    console.log("se tocó la linea")
+                });
+                return line;
+            },
+            router: router
         })
+        segmentos.push(resultado)
         resultado.addTo(map)
     }
 }
@@ -302,14 +213,26 @@ function buscarDireccion(direccion){
 }
 
 function calcularRutasOptimas(){
-    mostraRutas().then(()=>{
-        mostrarMatrizDistancias()
-        enviarMatrizDistancias().then((rutasRespuesta)=>{
-            console.log(rutasRespuesta)
-            mostrarRutasOptimas(rutasRespuesta.rutas)
-        })
+    enviarMatrizDistancias().then((rutasRespuesta)=>{
+        console.log(rutasRespuesta)
+        mostrarRutasOptimas(rutasRespuesta.rutas)
     })
+
+}
+
+async function  enviarPuntos(){
+    console.log("puntos: ",puntos)
+    resp = await fetch("http://localhost:5000/md2", {
+        body: "puntos="+JSON.stringify(puntos),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        method: "POST"
+    })
+    jsonResp = await resp.json()
+    console.table(jsonResp.matriz)
 }
 
 
 document.querySelector("#botonCalcularRutasoOptimas").addEventListener('click',calcularRutasOptimas)
+document.querySelector("#botonEnviarPuntos").addEventListener('click',enviarPuntos)
