@@ -97,6 +97,9 @@ def calcularMatrizDistancias2(C):
     M = matrizSimetrica(M)
     return M
 
+
+
+
 def matrizSimetrica(M):
     for x in range(len(M)):
         for y in range(x+1,len(M)):

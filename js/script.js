@@ -10,7 +10,10 @@ var capas = []
 var direcciones = []
 var capaPosiblesRutas = null
 var pilaClientes = []
+var instrucciones = []
 var cantidadClientes = 1
+var colores = []
+var desactivarEvento = false
 var pin = L.icon({
     iconUrl: "pin.png",
     iconSize: [35, 35],
@@ -23,19 +26,26 @@ var iconoDeposito = L.icon({
 });
 const coordSalta = [-24.7892, -65.4106]
 coords = null;
-
+rutasDOM = []
 
 var router = new L.Routing.osrmv1({serviceUrl: 'http://localhost:7000/route/v1'})
 
-map = L.map('map').setView(coordSalta, 14,{});
+map = L.map('map',{
+    scrollWheelZoom: false,
+    zoomAnimation: false
+}).setView(coordSalta, 14);
 L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors', maxZoom: 18 }).addTo(map);
 crearDeposito()
+map.doubleClickZoom.disable();
+map.addEventListener("dblclick ",crearMarca)  
+leerXLSX()
 
 function crearMarca(ev){
     coord= ev.latlng
     lat = coord.lat
     lng = coord.lng
-
+    console.log(cantidadClientes)
+    
     if(cantidadClientes==1){
         marca = L.marker([lat, lng], {icon: iconoDeposito}).addTo(map);
         marcas.push(marca)
@@ -49,13 +59,17 @@ function crearMarca(ev){
         marca.bindPopup("Cliente "+cantidadClientes).openPopup();
         marcas.push(marca)
         puntos.push({nodo: cantidadClientes,coordenadas:coord})
-        agregarClienteTabla(cantidadClientes,"Latitud: "+lat+" Longitud: "+lng+0,1)
+        dir = ""
+        L.esri.Geocoding.reverseGeocode().latlng([lat,lng]).run((error, result, response)=>{
+            agregarClienteTabla(cantidadClientes-1,result.address.ShortLabel,1)
+
+        })
         pilaClientes.push(cantidadClientes)
     }
     cantidadClientes++ 
+    asignarIdRutas()
+
 }
-map.addEventListener("click",crearMarca)  
-leerXLSX()
 
 function crearDeposito(){
     coord = coordSalta
@@ -134,13 +148,17 @@ function obtenerDemandas(){
     return demandas
 }
 
+function crearRuta(){
+    
+}
+
 function borrarRutas(){
     for (let i=0; i<segmentos.length;i++){
         segmentos[i].remove()
     }
 }
 
-function mostrarRutasOptimas(rutasRespuesta){
+async function mostrarRutasOptimas(rutasRespuesta){
 
     borrarRutas()
     for(let i=0; i<rutasRespuesta.length;i++){
@@ -170,21 +188,32 @@ function mostrarRutasOptimas(rutasRespuesta){
                 var line = L.Routing.line(r,{
                     styles:[
                             {
-                                color: RGB2HTML(random(256),random(256),random(256)), opacity: 0.9, weight: 5
+                                color: (() =>{    
+                                    color = RGB2HTML(random(256),random(256),random(256));
+                                    colores.push(color)
+                                    return color})(),
+                                opacity: 0.9,
+                                weight: 5
                             },
                         ],
-                })
-                line.on("linetouched",()=>{
-                    console.log("se tocó la linea")
-                });
-                return line;
-            },
+                        addWaypoints: false,
+                
+                    })
+                    return line
+                },
             router: router
+        })
+        resultado.on("routesfound",(r)=>{
+            instrucciones.push({ruta: i,instrucciones:r.routes[0].instructions})
         })
         segmentos.push(resultado)
         resultado.addTo(map)
+        ocultarInstrucciones()
     }
 }
+
+
+
 
 function reemplazarMarcas(){
     //Marcas 
@@ -218,7 +247,10 @@ async function buscarDireccion(direccion){
 function calcularRutasOptimas(){
     enviarMatrizDistancias().then((rutasRespuesta)=>{
         console.log(rutasRespuesta)
-        mostrarRutasOptimas(rutasRespuesta.rutas)
+        mostrarRutasOptimas(rutasRespuesta.rutas).then((resp)=>{
+            console.log(resp)
+        })
+          asignarIdRutas()         
     })
 }
 
@@ -257,6 +289,7 @@ function leerXLSX(){
 
     var valores = null
     var latLng
+    
     oReq.onload = function(e) {
         var valores = leerDatos();
 
@@ -280,8 +313,7 @@ function leerXLSX(){
             return valores;
         }
 
-        for(var i=0; i<valores.length-1; i++){
-            console.log("Cliente "+i+"- Direccion: "+valores[i].Direccion);
+        for(var i=0; i<valores.length; i++){
             direcciones.push(buscarDireccion(valores[i].Direccion, valores[i].Ciudad, valores[i].Provincia, valores[i].Pais))
         }
     }
@@ -291,6 +323,11 @@ function leerXLSX(){
 function buscarDireccion(Direccion, Ciudad, Provincia, Pais){
     salta = L.latLng(coordSalta[0],coordSalta[1])
     resultadoLatLng = null
+    var calle = Direccion.split(" ")
+    if(calle[0].toLowerCase() == "hernando"){
+        calle[0] = "hijo"
+    }
+    Direccion = calle.join(' ')
     return L.esri.Geocoding.geocode().address(Direccion).city(Ciudad).region(Provincia).run(function (err, resultados, response) {
         if (err) {
           console.log(err);
@@ -298,9 +335,6 @@ function buscarDireccion(Direccion, Ciudad, Provincia, Pais){
         }
         coordenadas = [resultados.results[0].latlng.lat, resultados.results[0].latlng.lng]
 
-        console.log(resultados)
-        console.log("resultados: "+resultados.results[0].text)
-        console.log(resultados.results[0].latlng)
         coordenadas = [resultados.results[0].latlng.lat, resultados.results[0].latlng.lng]
         marca = L.marker(coordenadas, {icon: pin}).addTo(map);
         marca.bindPopup("Cliente "+cantidadClientes).openPopup();
@@ -313,6 +347,85 @@ function buscarDireccion(Direccion, Ciudad, Provincia, Pais){
 
 }
 
+function rutaTocada(r){
+    idRuta = this.id
+    console.log("Se tocó la ruta "+this.id)
+    var instruccionesRuta 
+    console.log(r)
+    for(let i=0; i<instrucciones.length;i++){
+        if(instrucciones[i].ruta==idRuta){
+            instruccionesRuta=instrucciones[idRuta].instrucciones
+        }
+    }
+    LanzarPopUpInstrucciones(instrucciones,this.id)
+}
 
+function asignarIdRutas(){
+    for(let i=0;i<rutasDOM.length;i++){
+        rutasDOM[i].removeEventListener('click',rutaTocada)
+    }
+    rutasDOM = []
+    lfe = document.getElementsByClassName("leaflet-interactive")
+
+    rutasDOM = []
+    for(let i=0; i<lfe.length;i++){
+        for (let j=0; j<colores.length; j++){
+            if (lfe[i].getAttribute("stroke")==colores[j]){
+                rutasDOM.push(lfe[i])
+            }
+        }
+    }   
+    for(let i=0;i<rutasDOM.length;i++){
+        rutasDOM[i].id = i
+        rutasDOM[i].addEventListener('click',rutaTocada)
+        rutasDOM[i].className +="rutaClick"     
+    }
+    console.log(rutasDOM)
+    if(desactivarEvento == false)
+        map.addEventListener("click",asignarIdRutas)
+    if(desactivarEvento == false)
+        desactivarEvento = true
+}
+
+function crearTablaInstrucciones(instr,r){
+    bodyTablaPopUp.innerHTML = ""
+    bodyTablaPopUp = document.getElementById("bodyTablaPopUp")
+    instruccionesRuta = instr[r].instrucciones
+
+
+    for(let i=-1; i<instruccionesRuta.length;i++){
+        fila = document.createElement("tr")
+        col1 = document.createElement("td")
+        if(i<0){
+            col1.innerText = "INSTRUCCIONES RUTA "+r 
+            col1.style.fontWeight = "900"
+            col1.style.font = "italic bold 36px arial,serif"; 
+        }
+        else{
+            col1.innerText = instruccionesRuta[i].text 
+        }
+        fila.appendChild(col1)
+        bodyTablaPopUp.appendChild(fila)
+    }
+
+}
+
+
+function LanzarPopUpInstrucciones(instrucciones,r){
+    divPopUp = document.getElementById("divPopUp") 
+    divPopUp.style.display = "block"
+    document.getElementById("map").style.zIndex = "-1"
+    crearTablaInstrucciones(instrucciones,r)
+}
+
+function cerrarPopUp(){
+    divPopUp.style.display = "none"
+    document.getElementById("map").style.zIndex = ""
+    bodyTablaPopUp.innerHTML = ""
+}
+
+
+
+map.addEventListener("click",asignarIdRutas)
 document.querySelector("#botonCalcularRutasoOptimas").addEventListener('click',calcularRutasOptimas)
-document.querySelector("#botonEnviarPuntos")
+document.querySelector("#cerrar").addEventListener("click",cerrarPopUp)

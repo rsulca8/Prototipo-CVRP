@@ -60,25 +60,69 @@ oReq.open("GET", url, true);
 oReq.responseType = "arraybuffer";
 
 
+var valores = null
+var latLng
+oReq.onload = function(e) {
+    var valores = leerDatos();
 
+    function leerDatos(){
+        var arraybuffer = oReq.response;
+    
+        // Convertimos los datos a string
+        var datos = new Uint8Array(arraybuffer);
+        var arrayAux = new Array();
+        for(var i = 0; i != datos.length; ++i) arrayAux[i] = String.fromCharCode(datos[i]);
+        var bstr = arrayAux.join("");
+    
+        // Leemos el archivo .xlsx
+        var workbook = XLSX.read(bstr, {type:"binary"});
+    
+        //Leemos los nombres de los atributos
+        var first_sheet_name = workbook.SheetNames[0];
+        //La primera hoja de trabajo
+        var worksheet = workbook.Sheets[first_sheet_name];
+        valores = XLSX.utils.sheet_to_json(worksheet,{raw:true});
+        return valores;
+    }
 
-function buscarDireccion(Direccion, Ciudad, Provincia, Pais){
+    for(var i=0; i<valores.length; i++){
+        console.log("Cliente "+i+"- Direccion: "+valores[i].Direccion);
+        direcciones.push(buscarDireccion(i+1,valores[i].Direccion, valores[i].Ciudad, valores[i].Provincia))
+        //console.log("Length: "+direcciones.length+"     i: "+i)
+        // if(direcciones.length-1 == i){
+        //     console.log("Length en if: "+direcciones.length+"     i: "+i)
+        //     console.log("Direcciones -> ")
+        //     console.log(direcciones)
+        //     L.marker(direcciones[i]).addTo(map)
+        // }
+    }
+}
+oReq.send();
+
+function buscarDireccion(clienteId, Direccion, Ciudad, Provincia){
     salta = L.latLng(coordSalta[0],coordSalta[1])
     //var direccionSeparada = direccion.split(",")
     //console.log(direccionSeparada)
-    resultadoLatLng = null
-    return L.esri.Geocoding.geocode().address(Direccion).city(Ciudad).region(Provincia).run(function (err, resultados, response) {
+    //resultadoLatLng = null
+    var calle = Direccion.split(" ")
+    if(calle[0].toLowerCase() == "hernando"){
+        calle[0] = "hijo"
+    }
+    Direccion = calle.join(' ')
+
+    L.esri.Geocoding.geocode().address(Direccion).city(Ciudad).region(Provincia).run(function (err, resultados, response) {
     //resultados = L.esri.Geocoding.geocode().text(Direccion).nearby(salta, 500).run(function (err, resultados, response) {
         if (err) {
           console.log(err);
           return;
         }
-        console.log(resultados)
-        console.log("resultados: "+resultados.results[0].text)
+        console.log("resultados: "+resultados.results[0].text+"     direccion: "+Direccion)
         console.log(resultados.results[0].latlng)
-        //console.log(resultados)
+        console.log(resultados)
+        
         coordenadas = [resultados.results[0].latlng.lat, resultados.results[0].latlng.lng]
-        L.marker(coordenadas).addTo(map)
+        var markerCliente = L.marker(coordenadas).addTo(map)
+        markerCliente.bindPopup("Cliente "+(clienteId)).openPopup();
     })
     //console.log(resultados)
 }
